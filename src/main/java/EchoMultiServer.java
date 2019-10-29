@@ -8,54 +8,62 @@ public class EchoMultiServer {
 
     public static void main(String[] args) throws IOException {
         int port = 4444;
-        ExecutorService executor = Executors.newFixedThreadPool(10);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
 
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                executor.execute(new Handler(clientSocket));
+
+                // @todo: Add try / catch
+                PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
+                BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                executor.execute(new Handler(in, out, executor));
             }
         }
     }
 
     static class Handler implements Runnable {
-        private Socket clientSocket;
+        private final BufferedReader in;
+        private final PrintWriter out;
+        private ExecutorService executor;
 
-        public Handler(Socket clientSocket) {
-            this.clientSocket = clientSocket;
+        public Handler(BufferedReader in, PrintWriter out, ExecutorService executor) {
+            this.in = in;
+            this.out = out;
+            this.executor = executor;
         }
 
         @Override
         public void run() {
             try {
-                this.handle();
-            } catch (IOException ex) {
-                System.err.printf("Something went wrong: %s%n", ex.getMessage());
+                handle();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
 
         private void handle() throws IOException {
-            try (
-                PrintWriter out = new PrintWriter(this.clientSocket.getOutputStream(), true);
-                BufferedReader in = new BufferedReader(new InputStreamReader(this.clientSocket.getInputStream()))
-            ) {
-                String input;
-                while ((input = in.readLine()) != null) {
-                    System.out.printf("Received message: %s%n", input);
+            boolean isTerminated = false;
 
-                    if (input.equals("stop")) {
-                        System.out.println("Closing connection..");
-                        out.println("Bye!");
-                        break;
-                    }
+            if (this.in.ready()) {
+                String input = in.readLine();
+                System.out.printf("Received message: %s%n", input);
 
+                if (input.equals("/quit")) {
+                    System.out.println("Closing connection..");
+                    out.println("Bye!");
+                    isTerminated = true;
+                //    @todo: Close resources (in, out, clientSocket)
+                } else {
                     out.println(input);
                 }
+            }
 
-                System.out.println("Finish");
+            if (!isTerminated) {
+                // this.executor.execute(new Handler2(in, out, executor));
+                this.executor.execute(this);
             }
         }
-
     }
 
 }
