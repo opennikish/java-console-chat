@@ -4,30 +4,44 @@ import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+// @todo: Use separate class for the server
 public class EchoMultiServer {
 
     public static void main(String[] args) throws IOException {
+        // @todo: Move to config:
         int port = 4444;
-        ExecutorService executor = Executors.newFixedThreadPool(2);
+        int threadSize = 2;
+
+        ExecutorService executor = Executors.newFixedThreadPool(threadSize);
 
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             while (true) {
-                Socket clientSocket = serverSocket.accept();
+                Socket clientSocket = serverSocket.accept(); // Blocking
 
-                // @todo: Add try / catch
-                PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
-                BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-                executor.execute(new Handler(in, out, executor));
+                registerClient(executor, clientSocket);
             }
         }
     }
 
+    private static void registerClient(ExecutorService executor, Socket clientSocket) {
+        try {
+            PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
+            BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+
+            executor.execute(new Handler(clientSocket, in, out, executor));
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+    }
+
     static class Handler implements Runnable {
+        private final Socket clientSocket;
         private final BufferedReader in;
         private final PrintWriter out;
-        private ExecutorService executor;
+        private final ExecutorService executor;
 
-        public Handler(BufferedReader in, PrintWriter out, ExecutorService executor) {
+        public Handler(Socket clientSocket, BufferedReader in, PrintWriter out, ExecutorService executor) {
+            this.clientSocket = clientSocket;
             this.in = in;
             this.out = out;
             this.executor = executor;
@@ -36,9 +50,9 @@ public class EchoMultiServer {
         @Override
         public void run() {
             try {
-                handle();
-            } catch (IOException e) {
-                e.printStackTrace();
+                this.handle();
+            } catch (IOException ex) {
+                ex.printStackTrace();
             }
         }
 
@@ -50,19 +64,25 @@ public class EchoMultiServer {
                 System.out.printf("Received message: %s%n", input);
 
                 if (input.equals("/quit")) {
-                    System.out.println("Closing connection..");
-                    out.println("Bye!");
                     isTerminated = true;
-                //    @todo: Close resources (in, out, clientSocket)
+                    this.disconnectClient();
                 } else {
                     out.println(input);
                 }
             }
 
             if (!isTerminated) {
-                // this.executor.execute(new Handler2(in, out, executor));
                 this.executor.execute(this);
             }
+        }
+
+        private void disconnectClient() throws IOException {
+            System.out.println("Closing connection..");
+            out.println("Bye!");
+
+            this.clientSocket.close();
+            this.in.close();
+            this.out.close();
         }
     }
 
