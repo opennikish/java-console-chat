@@ -17,11 +17,15 @@ public class EchoClient {
             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in))
         ) {
-            String input;
+            String userInput;
+            while ((userInput = stdin.readLine()) != null) {
+                out.println(userInput);
+                String serverResponse = in.readLine();
 
-            while ((input = stdin.readLine()) != null) {
-                out.println(input);
-                System.out.printf("Echo: %s%n", in.readLine());
+                System.out.printf("Echo: %s%n", serverResponse);
+                if (serverResponse.equals("Bye!")) {
+                    break;
+                }
             }
         }
     }
