@@ -22,12 +22,6 @@ public class EchoMultiServer {
                 Socket clientSocket = serverSocket.accept(); // Blocking
 
                 registerClient(executor, clientSocket);
-
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
             }
         } catch (IOException ex) {
             System.err.println("Cannot start server socket on port: " + port);
@@ -84,6 +78,12 @@ public class EchoMultiServer {
                 } else {
                     out.println(input);
                 }
+            }
+
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
 
             if (!isTerminated) {
