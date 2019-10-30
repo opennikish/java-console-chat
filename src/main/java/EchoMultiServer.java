@@ -5,6 +5,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 // @todo: Use separate class for the server
+// @todo: Fix CPU usage
 public class EchoMultiServer {
 
     public static void main(String[] args) throws IOException {
@@ -14,11 +15,19 @@ public class EchoMultiServer {
 
         ExecutorService executor = Executors.newFixedThreadPool(threadSize);
 
+        System.out.println("Starting server..");
+
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             while (true) {
                 Socket clientSocket = serverSocket.accept(); // Blocking
 
                 registerClient(executor, clientSocket);
+
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
         } catch (IOException ex) {
             System.err.println("Cannot start server socket on port: " + port);
@@ -33,16 +42,18 @@ public class EchoMultiServer {
 
             executor.execute(new Handler(clientSocket, in, out, executor));
         } catch (IOException ex) {
+            System.err.println("Cannot initialize a client");
             ex.printStackTrace();
         }
     }
 
     static class Handler implements Runnable {
         private final Socket clientSocket;
-        private final BufferedReader in;
+            private final BufferedReader in;
         private final PrintWriter out;
         private final ExecutorService executor;
 
+        // @todo: Since we have `socket` instance we could get in/out streams here
         public Handler(Socket clientSocket, BufferedReader in, PrintWriter out, ExecutorService executor) {
             this.clientSocket = clientSocket;
             this.in = in;
@@ -52,6 +63,7 @@ public class EchoMultiServer {
 
         @Override
         public void run() {
+            System.out.println("Run");
             try {
                 this.handle();
             } catch (IOException ex) {
