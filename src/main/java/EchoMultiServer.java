@@ -20,6 +20,9 @@ public class EchoMultiServer {
 
                 registerClient(executor, clientSocket);
             }
+        } catch (IOException ex) {
+            System.err.println("Cannot start server socket on port: " + port);
+            ex.printStackTrace();
         }
     }
 
