@@ -11,6 +11,8 @@ import java.util.concurrent.Executors;
 
 public class NioServer {
 
+    // Note: to verify if client is disconnected: IOException "Broken Pipe" exception on write, `-1` on read (not sure)
+
     public static void main(String[] args) throws IOException {
         ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
 
@@ -36,10 +38,8 @@ public class NioServer {
             // Note: All register calls must be from the same thread that is doing selecting or deadlocks will occur
             clientQueue.offer(clientSocketChannel);
 
-            // Wake up processor thread since it could sleep if all current clients keeps silient
+            // Wake up processor thread since it could sleep if all current clients keeps silent
             selector.wakeup();
-
-            System.out.println("End main-loop iteration\n");
         }
     }
 
@@ -57,7 +57,7 @@ public class NioServer {
         @Override
         public void run() {
 
-            while (true) {
+            while (!Thread.currentThread().isInterrupted()) {
                 registerNewClients();
 
                 try {
@@ -99,48 +99,61 @@ public class NioServer {
                 SelectionKey selectionKey = selectionKeyIterator.next();
 
                 if (selectionKey.isReadable()) {
-                    this.readMessage((SocketChannel)selectionKey.channel());
-                    this.writeMessage((SocketChannel)selectionKey.channel());
+                    SocketChannel clientSocketChannel = (SocketChannel)selectionKey.channel();
+
+                    try {
+                        this.readMessage(clientSocketChannel);
+                        this.writeMessage(clientSocketChannel);
+                    } catch (IOException ex) {
+                        // On read: Connection reset by peer
+                        // On write: Broken Pipe
+
+                        ex.printStackTrace();
+                        this.closeClientChannel(clientSocketChannel);
+                    }
                 }
 
                 selectionKeyIterator.remove();
             }
         }
 
-        private void readMessage(SocketChannel channel) {
-            ByteBuffer buffer = ByteBuffer.allocate(48);
-
+        private void closeClientChannel(SocketChannel clientSocketChannel) {
             try {
-                ByteArrayOutputStream clientMessage = new ByteArrayOutputStream();
-
-                int byteCount = channel.read(buffer);
-                System.out.println("byteCount: " + byteCount);
-
-                while (byteCount > 0) {
-                    buffer.flip();
-
-                    while (buffer.hasRemaining()){
-                        clientMessage.write(buffer.get());
-                    }
-
-                    buffer.clear();
-                    byteCount = channel.read(buffer);
-                }
-
-                System.out.println("Got message: " + clientMessage.toString("UTF-8"));
+                clientSocketChannel.close();
             } catch (IOException e) {
                 e.printStackTrace();
             }
-
         }
 
-        private void writeMessage(SocketChannel channel) {
-            ByteBuffer message = ByteBuffer.wrap("Hello\n".getBytes());
-            try {
-                channel.write(message);
-            } catch (IOException e) {
-                e.printStackTrace();
+
+        private void readMessage(SocketChannel channel) throws IOException {
+            ByteBuffer buffer = ByteBuffer.allocate(48);
+
+
+            ByteArrayOutputStream clientMessage = new ByteArrayOutputStream();
+
+            int byteCount = channel.read(buffer);
+            System.out.println("byteCount: " + byteCount);
+
+
+            while (byteCount > 0) {
+                buffer.flip();
+
+                while (buffer.hasRemaining()){
+                    clientMessage.write(buffer.get());
+                }
+
+                buffer.clear();
+                byteCount = channel.read(buffer);
             }
+
+            System.out.println("Got message: " + clientMessage.toString("UTF-8"));
+        }
+
+        private void writeMessage(SocketChannel channel) throws IOException {
+            ByteBuffer message = ByteBuffer.wrap("Hello\n".getBytes());
+
+            channel.write(message);
         }
     }
 
