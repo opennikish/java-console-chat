@@ -109,7 +109,7 @@ public class NioServer {
                         // On write: Broken Pipe
 
                         ex.printStackTrace();
-                        this.closeClientChannel(clientSocketChannel);
+                        this.markAsClosed(clientSocketChannel);
                     }
                 }
 
@@ -117,7 +117,7 @@ public class NioServer {
             }
         }
 
-        private void closeClientChannel(SocketChannel clientSocketChannel) {
+        private void markAsClosed(SocketChannel clientSocketChannel) {
             try {
                 clientSocketChannel.close();
             } catch (IOException e) {
