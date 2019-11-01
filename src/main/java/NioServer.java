@@ -6,7 +6,6 @@ import java.nio.channels.*;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -18,7 +17,7 @@ public class NioServer {
     public static void main(String[] args) throws IOException {
         ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
 
-        serverSocketChannel.socket().bind(new InetSocketAddress("localhost",4444));
+        serverSocketChannel.socket().bind(new InetSocketAddress("0.0.0.0",4444));
         // serverSocketChannel.socket().bind(null); // Random free port
 
         Selector selector = Selector.open();
@@ -126,7 +125,8 @@ public class NioServer {
         private void broadcastMessage(SocketChannel sender, String message) throws IOException {
             for (SocketChannel client : this.activeClients) {
                 if (client != sender) {
-                    this.writeMessage(client, "- ".concat(message));
+                    // this.writeMessage(client, "- ".concat(message));
+                    this.writeMessage(client, message);
                 }
             }
         }
@@ -140,6 +140,8 @@ public class NioServer {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+
+            this.activeClients.remove(client);
         }
 
 
@@ -152,7 +154,7 @@ public class NioServer {
             System.out.println("byteCount: " + byteCount);
 
             if (byteCount == -1) {
-                throw new IOException("It's looks like client disconnected");
+                throw new IOException("Looks like the client has disconnected");
             }
 
             while (byteCount > 0) {
