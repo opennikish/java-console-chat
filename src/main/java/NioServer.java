@@ -3,8 +3,10 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -47,6 +49,9 @@ public class NioServer {
 
         private ConcurrentLinkedDeque<SocketChannel> clientQueue;
 
+        // private ConcurrentHashMap<SocketChannel, Object> activeClients
+        private HashSet<SocketChannel> activeClients = new HashSet<>();
+
         private Selector selector;
 
         public Processor(Selector selector, ConcurrentLinkedDeque<SocketChannel> clientQueue) {
@@ -83,6 +88,7 @@ public class NioServer {
 
                     try {
                         clientSocketChannel.register(selector, SelectionKey.OP_READ);
+                        activeClients.add(clientSocketChannel);
                     } catch (ClosedChannelException e) {
                         e.printStackTrace();
                     }
@@ -102,8 +108,12 @@ public class NioServer {
                     SocketChannel clientSocketChannel = (SocketChannel)selectionKey.channel();
 
                     try {
-                        this.readMessage(clientSocketChannel);
-                        this.writeMessage(clientSocketChannel);
+                        // this.readMessage(clientSocketChannel);
+                        // this.writeMessage(clientSocketChannel);
+
+                        String message = this.readMessage(clientSocketChannel);
+
+                        this.broadcastMessage(clientSocketChannel, message);
                     } catch (IOException ex) {
                         // On read: Connection reset by peer
                         // On write: Broken Pipe
@@ -117,6 +127,14 @@ public class NioServer {
             }
         }
 
+        private void broadcastMessage(SocketChannel sender, String message) throws IOException {
+            for (SocketChannel client : this.activeClients) {
+                if (client != sender) {
+                    this.writeMessage(client, "- ".concat(message));
+                }
+            }
+        }
+
         private void markAsClosed(SocketChannel clientSocketChannel) {
             try {
                 clientSocketChannel.close();
@@ -126,7 +144,7 @@ public class NioServer {
         }
 
 
-        private void readMessage(SocketChannel channel) throws IOException {
+        private String readMessage(SocketChannel channel) throws IOException {
             ByteBuffer buffer = ByteBuffer.allocate(48);
 
 
@@ -148,12 +166,15 @@ public class NioServer {
             }
 
             System.out.println("Got message: " + clientMessage.toString("UTF-8"));
+            return clientMessage.toString("UTF-8");
         }
 
-        private void writeMessage(SocketChannel channel) throws IOException {
-            ByteBuffer message = ByteBuffer.wrap("Hello\n".getBytes());
+        // private void writeMessage(SocketChannel channel) throws IOException {
+        private void writeMessage(SocketChannel channel, String message) throws IOException {
+            // ByteBuffer message = ByteBuffer.wrap("Hello\n".getBytes());
+            ByteBuffer messageBytes = ByteBuffer.wrap(message.getBytes());
 
-            channel.write(message);
+            channel.write(messageBytes);
         }
     }
 
