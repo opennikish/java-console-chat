@@ -18,14 +18,17 @@ public class EchoClient {
             BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in))
         ) {
             String userInput;
+
+            // System.out.print("> ");
             while ((userInput = stdin.readLine()) != null) {
                 out.println(userInput);
-                String serverResponse = in.readLine();
+                String serverResponse = in.readLine(); // Blocking
 
                 System.out.printf("Echo: %s%n", serverResponse);
                 if (serverResponse.equals("Bye!")) {
                     break;
                 }
+                // System.out.print("\033[2J" + "> " + userInput);
             }
         }
     }

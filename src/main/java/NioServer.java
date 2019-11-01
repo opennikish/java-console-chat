@@ -108,16 +108,12 @@ public class NioServer {
                     SocketChannel clientSocketChannel = (SocketChannel)selectionKey.channel();
 
                     try {
-                        // this.readMessage(clientSocketChannel);
-                        // this.writeMessage(clientSocketChannel);
-
                         String message = this.readMessage(clientSocketChannel);
 
                         this.broadcastMessage(clientSocketChannel, message);
                     } catch (IOException ex) {
                         // On read: Connection reset by peer
                         // On write: Broken Pipe
-
                         ex.printStackTrace();
                         this.markAsClosed(clientSocketChannel);
                     }
@@ -135,9 +131,12 @@ public class NioServer {
             }
         }
 
-        private void markAsClosed(SocketChannel clientSocketChannel) {
+        private void markAsClosed(SocketChannel client) {
             try {
-                clientSocketChannel.close();
+                client.close();
+
+                // SelectionKey key = client.keyFor(this.selector);
+                // key.cancel();
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -147,12 +146,14 @@ public class NioServer {
         private String readMessage(SocketChannel channel) throws IOException {
             ByteBuffer buffer = ByteBuffer.allocate(48);
 
-
             ByteArrayOutputStream clientMessage = new ByteArrayOutputStream();
 
             int byteCount = channel.read(buffer);
             System.out.println("byteCount: " + byteCount);
 
+            if (byteCount == -1) {
+                throw new IOException("It's looks like client disconnected");
+            }
 
             while (byteCount > 0) {
                 buffer.flip();
