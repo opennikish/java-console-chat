@@ -48,7 +48,6 @@ public class NioServer {
 
         private ConcurrentLinkedDeque<SocketChannel> clientQueue;
 
-        // private ConcurrentHashMap<SocketChannel, Object> activeClients
         private HashSet<SocketChannel> activeClients = new HashSet<>();
 
         private Selector selector;
@@ -67,12 +66,11 @@ public class NioServer {
                 try {
                     System.out.println("> Loop iteration");
 
-                    int readyChannelsCount = selector.select(); // Blocking
+                    int readyChannelCount = this.selector.select(); // Blocking
+                    System.out.println("> Selected: " + readyChannelCount);
 
-                    System.out.println("> Selected: " + readyChannelsCount);
-
-                    if (readyChannelsCount > 0) {
-                        this.process();
+                    if (readyChannelCount > 0) {
+                        this.processReadyChannels();
                     }
                 } catch (IOException ex) {
                     ex.printStackTrace();
@@ -96,16 +94,16 @@ public class NioServer {
             }
         }
 
-        private void process() {
+        private void processReadyChannels() {
             final Set<SelectionKey> selectionKeys = this.selector.selectedKeys();
             Iterator<SelectionKey> selectionKeyIterator = selectionKeys.iterator();
 
             while (selectionKeyIterator.hasNext()) {
+                // Is the set of keys such that each key's channel was detected to be ready
                 SelectionKey selectionKey = selectionKeyIterator.next();
+                SocketChannel clientSocketChannel = (SocketChannel)selectionKey.channel();
 
                 if (selectionKey.isReadable()) {
-                    SocketChannel clientSocketChannel = (SocketChannel)selectionKey.channel();
-
                     try {
                         String message = this.readMessage(clientSocketChannel);
 
@@ -114,10 +112,12 @@ public class NioServer {
                         // On read: Connection reset by peer
                         // On write: Broken Pipe
                         ex.printStackTrace();
-                        this.markAsClosed(clientSocketChannel);
+                        this.disconnectClient(clientSocketChannel);
                     }
                 }
 
+                // `selector` doesn't remove the SelectionKey instances from the set itself.
+                // It should be removed so that you do not get it again in the next calls of `selector.select()`
                 selectionKeyIterator.remove();
             }
         }
@@ -125,13 +125,12 @@ public class NioServer {
         private void broadcastMessage(SocketChannel sender, String message) throws IOException {
             for (SocketChannel client : this.activeClients) {
                 if (client != sender) {
-                    // this.writeMessage(client, "- ".concat(message));
                     this.writeMessage(client, message);
                 }
             }
         }
 
-        private void markAsClosed(SocketChannel client) {
+        private void disconnectClient(SocketChannel client) {
             try {
                 client.close();
 
@@ -172,9 +171,7 @@ public class NioServer {
             return clientMessage.toString("UTF-8");
         }
 
-        // private void writeMessage(SocketChannel channel) throws IOException {
         private void writeMessage(SocketChannel channel, String message) throws IOException {
-            // ByteBuffer message = ByteBuffer.wrap("Hello\n".getBytes());
             ByteBuffer messageBytes = ByteBuffer.wrap(message.getBytes());
 
             channel.write(messageBytes);
