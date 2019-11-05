@@ -26,7 +26,7 @@ public class NioServer {
         executorService.execute(new Worker(selector, clientQueue));
 
         while (true) {
-            SocketChannel clientSocketChannel = serverSocketChannel.accept();
+            SocketChannel clientSocketChannel = serverSocketChannel.accept(); // Blocking
             System.out.println("New client connected");
 
             clientSocketChannel.configureBlocking(false);

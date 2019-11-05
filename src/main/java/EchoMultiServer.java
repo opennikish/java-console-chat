@@ -43,7 +43,7 @@ public class EchoMultiServer {
 
     static class Handler implements Runnable {
         private final Socket clientSocket;
-            private final BufferedReader in;
+        private final BufferedReader in;
         private final PrintWriter out;
         private final ExecutorService executor;
 
