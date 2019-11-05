@@ -16,22 +16,17 @@ public class NioServer {
 
     public static void main(String[] args) throws IOException {
         ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
-
         serverSocketChannel.socket().bind(new InetSocketAddress("0.0.0.0",4444));
-        // serverSocketChannel.socket().bind(null); // Random free port
 
         Selector selector = Selector.open();
-
         ConcurrentLinkedDeque<SocketChannel> clientQueue = new ConcurrentLinkedDeque<>();
 
+        // @todo: Find strategy how to extend worker count. For now only one worker supported.
         ExecutorService executorService = Executors.newFixedThreadPool(1);
-
-        executorService.execute(new Processor(selector, clientQueue));
-
+        executorService.execute(new Worker(selector, clientQueue));
 
         while (true) {
             SocketChannel clientSocketChannel = serverSocketChannel.accept();
-
             System.out.println("New client connected");
 
             clientSocketChannel.configureBlocking(false);
@@ -39,12 +34,12 @@ public class NioServer {
             // Note: All register calls must be from the same thread that is doing selecting or deadlocks will occur
             clientQueue.offer(clientSocketChannel);
 
-            // Wake up processor thread since it could sleep if all current clients keeps silent
+            // Wake up worker thread since it could sleep if all current clients keeps silent
             selector.wakeup();
         }
     }
 
-    static class Processor implements Runnable {
+    static class Worker implements Runnable {
 
         private ConcurrentLinkedDeque<SocketChannel> clientQueue;
 
@@ -52,7 +47,7 @@ public class NioServer {
 
         private Selector selector;
 
-        public Processor(Selector selector, ConcurrentLinkedDeque<SocketChannel> clientQueue) {
+        public Worker(Selector selector, ConcurrentLinkedDeque<SocketChannel> clientQueue) {
             this.selector = selector;
             this.clientQueue = clientQueue;
         }
@@ -145,7 +140,8 @@ public class NioServer {
 
 
         private String readMessage(SocketChannel channel) throws IOException {
-            ByteBuffer buffer = ByteBuffer.allocate(48);
+            // @todo: Move to instance field
+            ByteBuffer buffer = ByteBuffer.allocate(1024);
 
             ByteArrayOutputStream clientMessage = new ByteArrayOutputStream();
 
