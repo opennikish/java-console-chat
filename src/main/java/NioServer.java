@@ -48,6 +48,9 @@ public class NioServer {
 
         private Selector selector;
 
+        private ByteBuffer readBuffer = ByteBuffer.allocate(1024);
+        private ByteArrayOutputStream readResult = new ByteArrayOutputStream();
+
         public Worker(Selector selector, ConcurrentLinkedDeque<SocketChannel> clientQueue) {
             this.selector = selector;
             this.clientQueue = clientQueue;
@@ -141,12 +144,7 @@ public class NioServer {
 
 
         private String readMessage(SocketChannel channel) throws IOException {
-            // @todo: Move to instance field
-            ByteBuffer buffer = ByteBuffer.allocate(1024);
-
-            ByteArrayOutputStream clientMessage = new ByteArrayOutputStream();
-
-            int byteCount = channel.read(buffer);
+            int byteCount = channel.read(this.readBuffer);
             System.out.println("byteCount: " + byteCount);
 
             if (byteCount == -1) {
@@ -154,18 +152,22 @@ public class NioServer {
             }
 
             while (byteCount > 0) {
-                buffer.flip();
+                this.readBuffer.flip();
 
-                while (buffer.hasRemaining()){
-                    clientMessage.write(buffer.get());
+                while (this.readBuffer.hasRemaining()){
+                    readResult.write(this.readBuffer.get());
                 }
 
-                buffer.clear();
-                byteCount = channel.read(buffer);
+                this.readBuffer.clear();
+                byteCount = channel.read(this.readBuffer);
             }
 
-            System.out.println("Got message: " + clientMessage.toString("UTF-8"));
-            return clientMessage.toString("UTF-8");
+            String clientMessage = this.readResult.toString("UTF-8");
+            this.readResult.reset();
+
+            System.out.printf("Got message: %s", clientMessage);
+
+            return clientMessage;
         }
 
         private void writeMessage(SocketChannel channel, String message) throws IOException {
