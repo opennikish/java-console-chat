@@ -15,6 +15,7 @@ public class NioServer {
     // Note: to verify if client is disconnected: IOException "Broken Pipe" exception on write, `-1` on read (not sure)
 
     public static void main(String[] args) throws IOException {
+        // @todo: Move params to config
         ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
         serverSocketChannel.socket().bind(new InetSocketAddress("0.0.0.0",4444));
 
