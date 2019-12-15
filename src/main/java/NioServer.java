@@ -17,7 +17,7 @@ public class NioServer {
     public static void main(String[] args) throws IOException {
         // @todo: Move params to config
         ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
-        serverSocketChannel.socket().bind(new InetSocketAddress("0.0.0.0",4444));
+        serverSocketChannel.socket().bind(new InetSocketAddress("0.0.0.0", 4444));
 
         Selector selector = Selector.open();
         ConcurrentLinkedDeque<SocketChannel> clientQueue = new ConcurrentLinkedDeque<>();
@@ -33,6 +33,7 @@ public class NioServer {
             clientSocketChannel.configureBlocking(false);
 
             // Note: All register calls must be from the same thread that is doing selecting or deadlocks will occur
+            // @todo: !! Round robin -> wakeup
             clientQueue.offer(clientSocketChannel);
 
             // Wake up worker thread since it could sleep if all current clients keeps silent
@@ -100,7 +101,7 @@ public class NioServer {
             while (selectionKeyIterator.hasNext()) {
                 // Is the set of keys such that each key's channel was detected to be ready
                 SelectionKey selectionKey = selectionKeyIterator.next();
-                SocketChannel clientSocketChannel = (SocketChannel)selectionKey.channel();
+                SocketChannel clientSocketChannel = (SocketChannel) selectionKey.channel();
 
                 if (selectionKey.isReadable()) {
                     try {
@@ -154,7 +155,7 @@ public class NioServer {
             while (byteCount > 0) {
                 this.readBuffer.flip();
 
-                while (this.readBuffer.hasRemaining()){
+                while (this.readBuffer.hasRemaining()) {
                     readResult.write(this.readBuffer.get());
                 }
 

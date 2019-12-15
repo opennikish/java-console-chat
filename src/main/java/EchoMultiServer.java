@@ -1,11 +1,12 @@
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-// @todo: Use separate class for the server
-// @todo: Fix CPU usage
 public class EchoMultiServer {
 
     public static void main(String[] args) throws IOException {
@@ -85,6 +86,7 @@ public class EchoMultiServer {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
+            // Thread.yield();
 
             if (!isTerminated) {
                 this.executor.execute(this);
