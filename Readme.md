@@ -11,7 +11,7 @@ cd path/to/project/src/main/java
 
 Build &amp; Run server
 ```
-javac NioServer.java && java NioServer
+javac Server.java && java Server
 ```
 
 Connect to the server

@@ -31,6 +31,7 @@ public class Acceptor {
             // @todo: !! Round robin -> wakeup
             clientQueue.offer(clientSocketChannel);
 
+            // @todo: atomic boolean check
             // Wake up worker thread since it could sleep if all current clients keeps silent
             selector.wakeup();
         }
