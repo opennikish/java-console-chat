@@ -23,6 +23,5 @@ java -jar build/libs/java-console-chat-all.jar
 While client development is WIP use `telnet` instead:
 
 ```
-# Use telnet while work on the client in progress
 telnet 0.0.0.0 4444
 ```
