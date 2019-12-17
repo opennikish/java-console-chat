@@ -4,17 +4,24 @@ Asynchronous chat server based on java NIO and sockets
 
 #### Development
 
-Go to java root:
+Go to project root
+
+##### Build
+
 ```
-cd path/to/project/src/main/java
+gradle build
 ```
 
-Build &amp; Run server
+##### Run
+
 ```
-javac Server.java && java Server
+java -jar build/libs/java-console-chat-all.jar
 ```
 
-Connect to the server
+##### Connect to the server
+
+While client development is WIP use `telnet` instead:
+
 ```
 # Use telnet while work on the client in progress
 telnet 0.0.0.0 4444
