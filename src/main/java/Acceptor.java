@@ -1,3 +1,6 @@
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.Selector;
@@ -8,6 +11,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Acceptor {
+
+    Logger logger = LoggerFactory.getLogger(Acceptor.class);
 
     public void start() throws IOException {
         // @todo: Move params to config / Handle exception
@@ -23,7 +28,7 @@ public class Acceptor {
 
         while (!Thread.currentThread().isInterrupted()) {
             SocketChannel clientSocketChannel = serverSocketChannel.accept(); // Blocking
-            System.out.println("New client connected");
+            logger.info("New client connected");
 
             clientSocketChannel.configureBlocking(false); // @todo: !! Handle exception
 

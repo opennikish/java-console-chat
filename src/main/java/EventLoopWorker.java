@@ -1,3 +1,6 @@
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -12,6 +15,8 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 
 
 public class EventLoopWorker implements Runnable {
+
+    private Logger logger = LoggerFactory.getLogger(EventLoopWorker.class);
 
     private ConcurrentLinkedDeque<SocketChannel> clientQueue;
 
@@ -34,16 +39,16 @@ public class EventLoopWorker implements Runnable {
             registerNewClients();
 
             try {
-                System.out.println("> Loop iteration");
+                logger.info("Loop iteration");
 
                 int readyChannelCount = this.selector.select(); // Blocking
-                System.out.println("> Selected: " + readyChannelCount);
+                logger.info("Selected: {}", readyChannelCount);
 
                 if (readyChannelCount > 0) {
                     this.processReadyChannels();
                 }
             } catch (IOException ex) {
-                ex.printStackTrace();
+                logger.error("Could not select:", ex);
             }
         }
     }
@@ -56,8 +61,8 @@ public class EventLoopWorker implements Runnable {
                 try {
                     clientSocketChannel.register(selector, SelectionKey.OP_READ);
                     activeClients.add(clientSocketChannel);
-                } catch (ClosedChannelException e) {
-                    e.printStackTrace();
+                } catch (ClosedChannelException ex) {
+                    logger.error("Could not register socket to the selector:", ex);
                 }
 
             }
@@ -81,7 +86,7 @@ public class EventLoopWorker implements Runnable {
                 } catch (IOException ex) {
                     // On read: Connection reset by peer
                     // On write: Broken Pipe
-                    ex.printStackTrace();
+                    logger.error("Could not read message from the client", ex);
                     this.disconnectClient(clientSocketChannel);
                 }
             }
@@ -102,13 +107,14 @@ public class EventLoopWorker implements Runnable {
     }
 
     private void disconnectClient(SocketChannel client) {
+        logger.info("Disconnect client"); // @todo: Use some id (guid, ip, etc)
         try {
             client.close();
 
             // SelectionKey key = client.keyFor(this.selector);
             // key.cancel();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (IOException ex) {
+            logger.error("Could not close the client channel", ex);
         }
 
         this.activeClients.remove(client);
@@ -117,7 +123,7 @@ public class EventLoopWorker implements Runnable {
 
     private String readMessage(SocketChannel channel) throws IOException {
         int byteCount = channel.read(this.readBuffer);
-        System.out.println("byteCount: " + byteCount);
+        logger.info("byteCount: {}", byteCount);
 
         // Note: to verify if client is disconnected: IOException "Broken Pipe" exception on write, `-1` on read
         if (byteCount == -1) {
@@ -136,9 +142,9 @@ public class EventLoopWorker implements Runnable {
         }
 
         String clientMessage = this.readResult.toString("UTF-8");
-        this.readResult.reset();
+        logger.info("Got message: {}", clientMessage);
 
-        System.out.printf("Got message: %s", clientMessage);
+        this.readResult.reset();
 
         return clientMessage;
     }
