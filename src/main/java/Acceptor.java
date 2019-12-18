@@ -8,29 +8,23 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Acceptor {
 
-    Logger logger = LoggerFactory.getLogger(Acceptor.class);
+    private Logger logger = LoggerFactory.getLogger(Acceptor.class);
 
     public void start() throws IOException {
         // @todo: Move params to config / Handle exception
         ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
         serverSocketChannel.socket().bind(new InetSocketAddress("0.0.0.0", 4444));
 
-        // Selector selector = Selector.open(); // @todo: Propagate exception
-        // ConcurrentLinkedDeque<SocketChannel> clientQueue = new ConcurrentLinkedDeque<>();
-
-
-        ExecutorService executorService = Executors.newFixedThreadPool(1);
-        // executorService.execute(new EventLoopWorker(selector, clientQueue));
-
-
         int threadNumber = Runtime.getRuntime().availableProcessors(); // @todo: Optimize formula for large CPU count
+        logger.info("IO Worker thread count: {}", threadNumber);
+
+        ExecutorService executorService = Executors.newFixedThreadPool(threadNumber);
         List<EventLoopWorker> workers = new ArrayList<>(threadNumber);
 
         for (int i = 0; i < threadNumber; i++) {
@@ -49,7 +43,8 @@ public class Acceptor {
             logger.info("New client connected");
             clientSocketChannel.configureBlocking(false); // @todo: !! Handle exception
 
-            EventLoopWorker eventLoopWorker = workers.get(this.getNextIndex(roundIndex, workers.size()));
+            roundIndex = this.getNextIndex(roundIndex, workers.size());
+            EventLoopWorker eventLoopWorker = workers.get(roundIndex);
 
             // Note: All register calls must be from the same thread that is doing selecting or deadlocks will occur
             eventLoopWorker.getNewClientsQueue().offer(clientSocketChannel);

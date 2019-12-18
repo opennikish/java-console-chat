@@ -10,15 +10,15 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 
+// @todo: Try not use ConcurrentLinkedQueue#size - it's heavy
 public class EventLoopWorker implements Runnable {
 
     private Logger logger = LoggerFactory.getLogger(EventLoopWorker.class);
 
     private ConcurrentLinkedQueue<SocketChannel> newClientsQueue;
-    private ConcurrentLinkedQueue<SocketChannel> outsideIncomingMessages;
+    private ConcurrentLinkedQueue<String> outsideIncomingMessages;
     private List<EventLoopWorker> neighborWorkers;
 
     private List<SocketChannel> activeClients = new ArrayList<>();
@@ -34,7 +34,7 @@ public class EventLoopWorker implements Runnable {
     public EventLoopWorker(
         Selector selector,
         ConcurrentLinkedQueue<SocketChannel> newClientsQueue,
-        ConcurrentLinkedQueue<SocketChannel> outsideIncomingMessages,
+        ConcurrentLinkedQueue<String> outsideIncomingMessages,
         List<EventLoopWorker> neighborWorkers
     ) {
         this.selector = selector;
@@ -51,13 +51,17 @@ public class EventLoopWorker implements Runnable {
         return newClientsQueue;
     }
 
+    public ConcurrentLinkedQueue<String> getOutsideIncomingMessages() {
+        return outsideIncomingMessages;
+    }
+
     @Override
     public void run() {
-        // this.isActive.set(true);
-
         while (!Thread.currentThread().isInterrupted()) {
             registerNewClients();
+            processOutsideIncomingMessages();
 
+            // @todo: Think about to extract to separate method
             try {
                 logger.info("Loop iteration");
 
@@ -73,18 +77,31 @@ public class EventLoopWorker implements Runnable {
         }
     }
 
+    private void processOutsideIncomingMessages() {
+        if (this.outsideIncomingMessages.size() > 0) {
+            logger.info("Got the message(s) from other partition(s)");
+
+            try {
+                String message;
+                while ((message = this.outsideIncomingMessages.poll()) != null) {
+                    this.broadcastMessage(message);
+                }
+            } catch (IOException ex) {
+                logger.error("Could not broadcast outside incoming message");
+            }
+        }
+    }
+
     private void registerNewClients() {
         if (this.newClientsQueue.size() > 0) {
             SocketChannel clientSocketChannel;
             while ((clientSocketChannel = this.newClientsQueue.poll()) != null) {
-
                 try {
                     clientSocketChannel.register(selector, SelectionKey.OP_READ);
                     activeClients.add(clientSocketChannel);
                 } catch (ClosedChannelException ex) {
                     logger.error("Could not register socket to the selector:", ex);
                 }
-
             }
         }
     }
@@ -104,6 +121,8 @@ public class EventLoopWorker implements Runnable {
 
                     // @todo: Thing about batching instead of single send to n-clients
                     this.broadcastMessage(clientSocketChannel, message);
+
+                    this.broadcastMessageToNeighbors(message);
                 } catch (IOException ex) {
                     // On read: Connection reset by peer
                     // On write: Broken Pipe
@@ -118,13 +137,26 @@ public class EventLoopWorker implements Runnable {
         }
     }
 
-    // @todo: Move to Broadcaster
+    private void broadcastMessageToNeighbors(String message) {
+        for (EventLoopWorker neighbor : this.neighborWorkers) {
+            neighbor.getOutsideIncomingMessages().offer(message);
+            neighbor.getSelector().wakeup();
+        }
+    }
+
     private void broadcastMessage(SocketChannel sender, String message) throws IOException {
         for (SocketChannel client : this.activeClients) {
             if (client != sender) {
+                // @todo: If one socket failed to sent - then the message will not be sent to the left sockets
+                // Surround with try/catch for each `writeMessage` call instead of making global try/catch at caller
                 this.writeMessage(client, message);
             }
         }
+    }
+
+    // @todo: Refactor, add `ignoreSender` or smth
+    private void broadcastMessage(String message) throws IOException {
+        this.broadcastMessage(null, message);
     }
 
     private void disconnectClient(SocketChannel client) {
@@ -141,11 +173,11 @@ public class EventLoopWorker implements Runnable {
         this.activeClients.remove(client);
     }
 
-
     private String readMessage(SocketChannel channel) throws IOException {
         int byteCount = channel.read(this.readBuffer);
         logger.info("byteCount: {}", byteCount);
 
+        // @todo: Think about to wrap it to business exceptin (it could be `ClientDisconnectedException extends IOException`)
         // Note: to verify if client is disconnected: IOException "Broken Pipe" exception on write, `-1` on read
         if (byteCount == -1) {
             throw new IOException("Looks like the client has disconnected");
