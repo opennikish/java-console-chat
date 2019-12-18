@@ -6,7 +6,10 @@ import java.net.InetSocketAddress;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -19,27 +22,47 @@ public class Acceptor {
         ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
         serverSocketChannel.socket().bind(new InetSocketAddress("0.0.0.0", 4444));
 
-        Selector selector = Selector.open(); // @todo: Propagate exception
-        ConcurrentLinkedDeque<SocketChannel> clientQueue = new ConcurrentLinkedDeque<>();
+        // Selector selector = Selector.open(); // @todo: Propagate exception
+        // ConcurrentLinkedDeque<SocketChannel> clientQueue = new ConcurrentLinkedDeque<>();
 
-        // @todo: Find strategy how to extend worker count. For now only one worker supported.
+
         ExecutorService executorService = Executors.newFixedThreadPool(1);
-        executorService.execute(new EventLoopWorker(selector, clientQueue));
+        // executorService.execute(new EventLoopWorker(selector, clientQueue));
+
+
+        int threadNumber = Runtime.getRuntime().availableProcessors(); // @todo: Optimize formula for large CPU count
+        List<EventLoopWorker> workers = new ArrayList<>(threadNumber);
+
+        for (int i = 0; i < threadNumber; i++) {
+            // @todo: `Selector.open()` - Propagate exception
+            EventLoopWorker worker = new EventLoopWorker(
+                Selector.open(), new ConcurrentLinkedQueue<>(), new ConcurrentLinkedQueue<>(), workers
+            );
+            workers.add(worker);
+            executorService.execute(worker);
+        }
+
+        int roundIndex = -1;
 
         while (!Thread.currentThread().isInterrupted()) {
             SocketChannel clientSocketChannel = serverSocketChannel.accept(); // Blocking
             logger.info("New client connected");
-
             clientSocketChannel.configureBlocking(false); // @todo: !! Handle exception
 
+            EventLoopWorker eventLoopWorker = workers.get(this.getNextIndex(roundIndex, workers.size()));
+
             // Note: All register calls must be from the same thread that is doing selecting or deadlocks will occur
-            // @todo: !! Round robin -> wakeup
-            clientQueue.offer(clientSocketChannel);
+            eventLoopWorker.getNewClientsQueue().offer(clientSocketChannel);
 
             // @todo: atomic boolean check
             // Wake up worker thread since it could sleep if all current clients keeps silent
-            selector.wakeup();
+            eventLoopWorker.getSelector().wakeup();
         }
+    }
+
+    private int getNextIndex(int current, int total) {
+        int next = current + 1;
+        return next < total ? next : 0;
     }
 
 }

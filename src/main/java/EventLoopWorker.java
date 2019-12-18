@@ -8,32 +8,52 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 
 public class EventLoopWorker implements Runnable {
 
     private Logger logger = LoggerFactory.getLogger(EventLoopWorker.class);
 
-    private ConcurrentLinkedDeque<SocketChannel> clientQueue;
+    private ConcurrentLinkedQueue<SocketChannel> newClientsQueue;
+    private ConcurrentLinkedQueue<SocketChannel> outsideIncomingMessages;
+    private List<EventLoopWorker> neighborWorkers;
 
-    private HashSet<SocketChannel> activeClients = new HashSet<>();
+    private List<SocketChannel> activeClients = new ArrayList<>();
 
     private Selector selector;
 
     private ByteBuffer readBuffer = ByteBuffer.allocate(1024);
     private ByteArrayOutputStream readResult = new ByteArrayOutputStream();
 
-    public EventLoopWorker(Selector selector, ConcurrentLinkedDeque<SocketChannel> clientQueue) {
+    // For future optimization
+    // private AtomicBoolean isActive = new AtomicBoolean(false);
+
+    public EventLoopWorker(
+        Selector selector,
+        ConcurrentLinkedQueue<SocketChannel> newClientsQueue,
+        ConcurrentLinkedQueue<SocketChannel> outsideIncomingMessages,
+        List<EventLoopWorker> neighborWorkers
+    ) {
         this.selector = selector;
-        this.clientQueue = clientQueue;
+        this.newClientsQueue = newClientsQueue;
+        this.outsideIncomingMessages = outsideIncomingMessages;
+        this.neighborWorkers = neighborWorkers;
+    }
+
+    public Selector getSelector() {
+        return selector;
+    }
+
+    public ConcurrentLinkedQueue<SocketChannel> getNewClientsQueue() {
+        return newClientsQueue;
     }
 
     @Override
     public void run() {
+        // this.isActive.set(true);
 
         while (!Thread.currentThread().isInterrupted()) {
             registerNewClients();
@@ -54,9 +74,9 @@ public class EventLoopWorker implements Runnable {
     }
 
     private void registerNewClients() {
-        if (this.clientQueue.size() > 0) {
+        if (this.newClientsQueue.size() > 0) {
             SocketChannel clientSocketChannel;
-            while ((clientSocketChannel = this.clientQueue.poll()) != null) {
+            while ((clientSocketChannel = this.newClientsQueue.poll()) != null) {
 
                 try {
                     clientSocketChannel.register(selector, SelectionKey.OP_READ);
@@ -82,6 +102,7 @@ public class EventLoopWorker implements Runnable {
                 try {
                     String message = this.readMessage(clientSocketChannel);
 
+                    // @todo: Thing about batching instead of single send to n-clients
                     this.broadcastMessage(clientSocketChannel, message);
                 } catch (IOException ex) {
                     // On read: Connection reset by peer
