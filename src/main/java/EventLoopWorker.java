@@ -58,7 +58,7 @@ public class EventLoopWorker implements Runnable {
     @Override
     public void run() {
         while (!Thread.currentThread().isInterrupted()) {
-            registerNewClients();
+            registerNewClients(); // @todo: think about call this method from Acceptor
             processOutsideIncomingMessages();
 
             // @todo: Think about to extract to separate method
@@ -115,14 +115,16 @@ public class EventLoopWorker implements Runnable {
             SelectionKey selectionKey = selectionKeyIterator.next();
             SocketChannel clientSocketChannel = (SocketChannel) selectionKey.channel();
 
+            logger.info("selectionKey readyOps: {}", selectionKey.readyOps());
+
             if (selectionKey.isReadable()) {
                 try {
                     String message = this.readMessage(clientSocketChannel);
 
-                    // @todo: Thing about batching instead of single send to n-clients
+                    // @todo: Think about batching instead of single send to n-clients
                     this.broadcastMessage(clientSocketChannel, message);
 
-                    this.broadcastMessageToNeighbors(message);
+                    this.broadcastMessageToNeighborWorkers(message);
                 } catch (IOException ex) {
                     // On read: Connection reset by peer
                     // On write: Broken Pipe
@@ -137,10 +139,12 @@ public class EventLoopWorker implements Runnable {
         }
     }
 
-    private void broadcastMessageToNeighbors(String message) {
+    private void broadcastMessageToNeighborWorkers(String message) {
         for (EventLoopWorker neighbor : this.neighborWorkers) {
-            neighbor.getOutsideIncomingMessages().offer(message);
-            neighbor.getSelector().wakeup();
+            if (neighbor != this) {
+                neighbor.getOutsideIncomingMessages().offer(message);
+                neighbor.getSelector().wakeup(); // @todo: Add check with atomic
+            }
         }
     }
 
@@ -193,6 +197,8 @@ public class EventLoopWorker implements Runnable {
             this.readBuffer.clear();
             byteCount = channel.read(this.readBuffer);
         }
+
+        // @todo: Does need to check that client has been disconnected?
 
         String clientMessage = this.readResult.toString("UTF-8");
         logger.info("Got message: {}", clientMessage);

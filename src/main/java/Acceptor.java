@@ -35,10 +35,10 @@ public class Acceptor {
             logger.info("New client connected");
             clientSocketChannel.configureBlocking(false); // @todo: !! Handle exception
 
-            roundIndex = this.getNextIndex(roundIndex, workers.size());
+            roundIndex = this.nextIndex(roundIndex, workers.size());
             EventLoopWorker eventLoopWorker = workers.get(roundIndex);
 
-            // Note: All register calls must be from the same thread that is doing selecting or deadlocks will occur
+            // Note: All register calls must be from the same thread that is doing select or deadlocks will occur
             eventLoopWorker.getNewClientsQueue().offer(clientSocketChannel);
 
             // @todo: atomic boolean check
@@ -62,7 +62,7 @@ public class Acceptor {
         return workers;
     }
 
-    private int getNextIndex(int current, int total) {
+    private int nextIndex(int current, int total) {
         int next = current + 1;
         return next < total ? next : 0;
     }
