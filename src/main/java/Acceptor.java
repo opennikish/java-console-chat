@@ -25,16 +25,8 @@ public class Acceptor {
         logger.info("IO Worker thread count: {}", threadNumber);
 
         ExecutorService executorService = Executors.newFixedThreadPool(threadNumber);
-        List<EventLoopWorker> workers = new ArrayList<>(threadNumber);
 
-        for (int i = 0; i < threadNumber; i++) {
-            // @todo: `Selector.open()` - Propagate exception
-            EventLoopWorker worker = new EventLoopWorker(
-                Selector.open(), new ConcurrentLinkedQueue<>(), new ConcurrentLinkedQueue<>(), workers
-            );
-            workers.add(worker);
-            executorService.execute(worker);
-        }
+        List<EventLoopWorker> workers = registerWorkers(threadNumber, executorService);
 
         int roundIndex = -1;
 
@@ -53,6 +45,21 @@ public class Acceptor {
             // Wake up worker thread since it could sleep if all current clients keeps silent
             eventLoopWorker.getSelector().wakeup();
         }
+    }
+
+    private List<EventLoopWorker> registerWorkers(int threadNumber, ExecutorService executorService) throws IOException {
+        List<EventLoopWorker> workers = new ArrayList<>(threadNumber);
+
+        for (int i = 0; i < threadNumber; i++) {
+            // @todo: `Selector.open()` - Propagate exception
+            EventLoopWorker worker = new EventLoopWorker(
+                Selector.open(), new ConcurrentLinkedQueue<>(), new ConcurrentLinkedQueue<>(), workers
+            );
+            workers.add(worker);
+            executorService.execute(worker);
+        }
+
+        return workers;
     }
 
     private int getNextIndex(int current, int total) {

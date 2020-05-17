@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class DumbTest {
     @Test
-    void appHasAGreeting() {
+    void dump() {
         assertTrue(true);
     }
 }
