@@ -28,22 +28,24 @@ public class Acceptor {
 
         List<EventLoopWorker> workers = registerWorkers(threadNumber, executorService);
 
-        int roundIndex = -1;
+        int workerIndex = -1;
 
         while (!Thread.currentThread().isInterrupted()) {
             SocketChannel clientSocketChannel = serverSocketChannel.accept(); // Blocking
             logger.info("New client connected");
             clientSocketChannel.configureBlocking(false); // @todo: !! Handle exception
 
-            roundIndex = this.nextIndex(roundIndex, workers.size());
-            EventLoopWorker eventLoopWorker = workers.get(roundIndex);
+            workerIndex = this.nextIndex(workerIndex, workers.size());
+            EventLoopWorker eventLoopWorker = workers.get(workerIndex);
 
             // Note: All register calls must be from the same thread that is doing select or deadlocks will occur
             eventLoopWorker.getNewClientsQueue().offer(clientSocketChannel);
 
-            // @todo: atomic boolean check
-            // Wake up worker thread since it could sleep if all current clients keeps silent
-            eventLoopWorker.getSelector().wakeup();
+            if (!eventLoopWorker.isActive().get()) {
+                // Wake up worker thread since it could sleep if all current clients keeps silent
+                logger.info("Wakeup worker {}", workerIndex);
+                eventLoopWorker.getSelector().wakeup();
+            }
         }
     }
 

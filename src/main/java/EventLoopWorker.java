@@ -10,6 +10,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 
 // @todo: Try not use ConcurrentLinkedQueue#size - it's heavy
@@ -29,7 +30,7 @@ public class EventLoopWorker implements Runnable {
     private ByteArrayOutputStream readResult = new ByteArrayOutputStream();
 
     // For future optimization
-    // private AtomicBoolean isActive = new AtomicBoolean(false);
+    private AtomicBoolean isActive = new AtomicBoolean(false);
 
     public EventLoopWorker(
         Selector selector,
@@ -45,6 +46,10 @@ public class EventLoopWorker implements Runnable {
 
     public Selector getSelector() {
         return selector;
+    }
+
+    public AtomicBoolean isActive() {
+        return isActive;
     }
 
     public ConcurrentLinkedQueue<SocketChannel> getNewClientsQueue() {
@@ -65,7 +70,10 @@ public class EventLoopWorker implements Runnable {
             try {
                 logger.info("Loop iteration");
 
+                this.isActive.set(false);
                 int readyChannelCount = this.selector.select(); // Blocking
+                this.isActive.set(true);
+
                 logger.info("Selected: {}", readyChannelCount);
 
                 if (readyChannelCount > 0) {
@@ -143,7 +151,10 @@ public class EventLoopWorker implements Runnable {
         for (EventLoopWorker neighbor : this.neighborWorkers) {
             if (neighbor != this) {
                 neighbor.getOutsideIncomingMessages().offer(message);
-                neighbor.getSelector().wakeup(); // @todo: Add check with atomic
+                if (!neighbor.isActive().get()) {
+                    // Wake up worker thread since it could sleep if all current clients keeps silent
+                    neighbor.getSelector().wakeup();
+                }
             }
         }
     }
@@ -183,6 +194,7 @@ public class EventLoopWorker implements Runnable {
 
         // @todo: Think about to wrap it to business exceptin (it could be `ClientDisconnectedException extends IOException`)
         // Note: to verify if client is disconnected: IOException "Broken Pipe" exception on write, `-1` on read
+        // @todo: see java.nio.channels.ClosedChannelException
         if (byteCount == -1) {
             throw new IOException("Looks like the client has disconnected");
         }
